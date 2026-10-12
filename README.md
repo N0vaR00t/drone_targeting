@@ -3,33 +3,33 @@
 
 Формат вводу - текстовий файл scenario.txt який містить дані, у форматі:
 
-altitude_m
-wind_x wind_y
-count
+altitude_m  
+wind_x wind_y  
+count  
 x y hp type ← рядок цілі, повторюється count разів
 
 Формат виводу - текстовий файл result.txt, дані відображаються у форматі:
 
-impact_x impact_y ← краща точка влучання
-release_x release_y ← точка скиду з урахуванням вітру
-<назва боєприпасу> ← Frag / HE / HEAT
+impact_x impact_y ← краща точка влучання  
+release_x release_y ← точка скиду з урахуванням вітру  
+<назва боєприпасу> ← Frag / HE / HEAT  
 destroyed value_sum price net
 
 Приклад роботи:
 
 При вхідних даних:
 
-120.0
-5.0 0.0
-4
-300.0 400.0 20 LOGISTICS
-300.0 450.0 15 PERSONNEL
-260.0 380.0 15 PERSONNEL
+120.0  
+5.0 0.0  
+4  
+300.0 400.0 20 LOGISTICS  
+300.0 450.0 15 PERSONNEL  
+260.0 380.0 15 PERSONNEL  
 340.0 380.0 15 PERSONNEL
 
-Отримуємо результат:
+Отримуємо результат:  
 
-300.00 400.00
-275.27 400.00
-Frag
+300.00 400.00  
+275.27 400.00  
+Frag  
 4 50 35 15
