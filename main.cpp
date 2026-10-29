@@ -132,17 +132,20 @@ public:
     }
 };
 
-struct SelectionResult {
-    int net;
-    int value_sum;
-    int destroyed;
-    int best_target;
-    int best_weapon;
-};
-
 class TargetWeaponSelector {
 public:
-    SelectionResult select(const std::vector<Target> & targets, const std::vector<Weapon>& weapons) const {
+    struct SelectionResult {
+        int net;
+        int value_sum;
+        int destroyed;
+        int best_target;
+        int best_weapon;
+    };
+    
+    SelectionResult select(
+        const std::vector<Target>& targets,
+        const std::vector<Weapon>& weapons
+    ) const {
         SelectionResult result = {
             -100000, 0, 0, 0, 0
         };
@@ -166,10 +169,13 @@ public:
                         temp_destroyed++;
                     }
                 }
-                
+
                 int temp_net = sum - weapon.getPrice();
 
-                if (temp_net > result.net || (temp_net == result.net && weapon.getPrice() < weapons[result.best_weapon].getPrice())) {
+                if (temp_net > result.net ||
+                    (temp_net == result.net &&
+                     weapon.getPrice() <
+                     weapons[result.best_weapon].getPrice())) {
 
                     result.net = temp_net;
                     result.value_sum = sum;
@@ -223,34 +229,36 @@ public:
     }
 };
 
-bool getTargetType(const std::string& name, TargetType& type, double& value) {
-    
-    if (name == "PERSONNEL") {
-        type = TargetType::PERSONNEL;
-        value = 10;
-    }
-    else if (name == "LOGISTICS") {
-        type = TargetType::LOGISTICS;
-        value = 20;
-    }
-    else if (name == "APC") {
-        type = TargetType::APC;
-        value = 40;
-    }
-    else if (name == "TANK") {
-        type = TargetType::TANK;
-        value = 60;
-    }
-    else if (name == "RADAR") {
-        type = TargetType::RADAR;
-        value = 90;
-    }
-    else {
-        return false;
-    }
+class TargetTypeBool {
+public:
+    bool getTargetType(const std::string& name, TargetType& type, double& value) const {
+        if (name == "PERSONNEL") {
+            type = TargetType::PERSONNEL;
+            value = 10;
+        }
+        else if (name == "LOGISTICS") {
+            type = TargetType::LOGISTICS;
+            value = 20;
+        }
+        else if (name == "APC") {
+            type = TargetType::APC;
+            value = 40;
+        }
+        else if (name == "TANK") {
+            type = TargetType::TANK;
+            value = 60;
+        }
+        else if (name == "RADAR") {
+            type = TargetType::RADAR;
+            value = 90;
+        }
+        else {
+            return false;
+        }
 
-    return true;
-}
+        return true;
+    }
+};
 
 int main(int argc, char* argv[]) {
     std::string input_file;
@@ -351,7 +359,9 @@ int main(int argc, char* argv[]) {
         TargetType type;
         double value;
 
-        if (!getTargetType(type_name, type, value)) {
+        TargetTypeBool parser;
+
+        if (!parser.getTargetType(type_name, type, value)) {
             std::cerr << "Помилка. Invalid target type\n";
             return 1;
         }
@@ -372,7 +382,7 @@ int main(int argc, char* argv[]) {
 
     TargetWeaponSelector selector;
 
-    SelectionResult selection = selector.select(targets, weapons);
+    TargetWeaponSelector::SelectionResult selection = selector.select(targets, weapons);
 
     int net = selection.net;
     int value_sum = selection.value_sum;
@@ -386,7 +396,9 @@ int main(int argc, char* argv[]) {
     Vector2D impact(impact_x, impact_y);
     Vector2D wind(wind_x, wind_y);
 
-    Vector2D release = trajectory_source->calculateReleasePoint(impact, altitude_m, wind);
+    Vector2D release = trajectory_source->calculateReleasePoint(
+        impact, altitude_m, wind
+    );
 
     double release_x = release.getX();
     double release_y = release.getY();
