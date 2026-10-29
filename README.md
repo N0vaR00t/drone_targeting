@@ -65,3 +65,84 @@ impact_x impact_y ← краща точка влучання
 release_x release_y ← точка скиду з урахуванням вітру  
 <назва боєприпасу> ← Frag / HE / HEAT  
 destroyed value_sum price net
+
+## Діаграма класів  
+
+```mermaid
+classDiagram
+    class TargetType {
+        <<enumeration>>
+        PERSONNEL
+        LOGISTICS
+        APC
+        TANK
+        RADAR
+    }
+
+    class WeaponType {
+        <<enumeration>>
+        Frag
+        HE
+        HEAT
+    }
+
+    class Target {
+        - type
+        - position
+        - hp
+        - value
+    }
+
+    class Weapon {
+        - type
+        - radius
+        - damage
+        - price
+    }
+
+    class Vector2D {
+        - x
+        - y
+        +getX() 
+        +getY()
+        +distanceTo() 
+        +operator+() Vector2D
+        +operator-() Vector2D
+        +operator*() Vector2D
+    }
+
+    class Target {
+        - type
+        - position
+        - hp
+        - value
+    }
+
+    class Weapon {
+        - type
+        - radius
+        - damage
+        - price
+    }
+
+    class ITrajectorySource {
+        <<interface>>
+        +calculateReleasePoint() Vector2D
+    }
+
+    class HoverTrajectory {
+        +calculateReleasePoint() Vector2D
+    }
+
+    class ForwardThrowTrajectory {
+        -Vector2D drone_velocity
+        +calculateReleasePoint() Vector2D
+    }
+
+    Target *-- Vector2D : position
+    ForwardThrowTrajectory *-- Vector2D : velocity
+    ITrajectorySource <|.. HoverTrajectory
+    ITrajectorySource <|.. ForwardThrowTrajectory
+    Target --> TargetType : type
+    Weapon --> WeaponType : type
+```
