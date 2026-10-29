@@ -6,11 +6,12 @@
 Перша команда в терміналі для компіляції - g++ -std=c++17 -Wall -Wextra main.cpp -o drop_calc
 
 <h3>Приклад 1 — запуск на одному файлі через аргументи:</h3>
-./drop_calc --input-file scenario.txt --output-file result.txt - Порядок аргументів не фіксований.    
+./drop_calc --input-file scenario.txt --output-file result.txt --trajectory hover|forward - Порядок аргументів не фіксований, модель траєкторії за замовчуванням
+hover.
 
 <h3>Приклад 2 — пакетна обробка теки - використовує run-all.sh:</h3>  
 
-./run-all.sh. 
+./run-all.sh 
 
 <h3>Приклад 3 — запуск у контейнері - використовує Dockerfile:</h3>
   
