@@ -87,43 +87,34 @@ classDiagram
         HEAT
     }
 
-    class Target {
-        - type
-        - position
-        - hp
-        - value
-    }
-
-    class Weapon {
-        - type
-        - radius
-        - damage
-        - price
-    }
-
     class Vector2D {
-        - x
-        - y
-        +getX() 
-        +getY()
-        +distanceTo() 
-        +operator+() Vector2D
-        +operator-() Vector2D
-        +operator*() Vector2D
+        -double x
+        -double y
+        +getX() double
+        +getY() double
+        +distanceTo() double
     }
 
     class Target {
-        - type
-        - position
-        - hp
-        - value
+        -TargetType type
+        -Vector2D position
+        -double hp
+        -double value
     }
 
     class Weapon {
-        - type
-        - radius
-        - damage
-        - price
+        -WeaponType type
+        -double radius
+        -double damage
+        -int price
+    }
+
+    class TargetWeaponSelector {
+        +select() SelectionResult
+    }
+
+    class TargetTypeBool {
+        +getTargetType() bool
     }
 
     class ITrajectorySource {
@@ -132,6 +123,7 @@ classDiagram
     }
 
     class HoverTrajectory {
+        -fallTime() double
         +calculateReleasePoint() Vector2D
     }
 
@@ -140,10 +132,18 @@ classDiagram
         +calculateReleasePoint() Vector2D
     }
 
-    Target *-- Vector2D : position
-    ForwardThrowTrajectory *-- Vector2D : velocity
-    ITrajectorySource <|.. HoverTrajectory
-    ITrajectorySource <|.. ForwardThrowTrajectory
-    Target --> TargetType : type
-    Weapon --> WeaponType : type
+    Target --> TargetType
+    Target *-- Vector2D
+    Weapon --> WeaponType
+
+    TargetWeaponSelector ..> Target
+    TargetWeaponSelector ..> Weapon
+
+    TargetTypeBool ..> TargetType
+
+    HoverTrajectory --|> ITrajectorySource
+    ForwardThrowTrajectory --|> ITrajectorySource
+
+    ITrajectorySource ..> Vector2D
+    ForwardThrowTrajectory *-- Vector2D
 ```
