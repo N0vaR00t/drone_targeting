@@ -34,6 +34,10 @@ input/mission-b.txt → output/mission-b-result.txt
 Друк результатів в терміналі;  
 Для збереження в теці Output виклик: docker run --rm -v "$(pwd)/output:/app/output" drop-calc
 
+<h3>Потік виводу (stdout) у терміналі:</h3> 
+
+Програма друкує рядок з тривалістю розрахунку в мікросекундах: elapsed_us <ціле число>
+
 <h2>Приклад роботи:</h2>
 
 <h3>При вхідних даних:</h3>  
@@ -147,3 +151,6 @@ classDiagram
     ITrajectorySource ..> Vector2D
     ForwardThrowTrajectory *-- Vector2D
 ```
+<h3>O-нотація</h3>
+
+Складність підбору комбінації цілей та зброї - O(n² × m). Наразі кількість типів зброї фіксована, тому складність становить O(n²).
