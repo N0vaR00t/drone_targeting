@@ -4,6 +4,22 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include <memory>
+#include <chrono>
+
+inline void forward_throw_release(
+    double impact_x, double impact_y,
+    double altitude_m,
+    double wind_x, double wind_y,
+    double drone_vx, double drone_vy,
+    double& out_release_x, double& out_release_y
+) {
+    const double g = 9.81;
+    const double t = std::sqrt(2.0 * altitude_m / g);
+
+    out_release_x = impact_x - (wind_x + drone_vx) * t;
+    out_release_y = impact_y - (wind_y + drone_vy) * t;
+}
 
 const double G = 9.81;
 
@@ -21,66 +37,239 @@ enum class WeaponType {
     HEAT
 };
 
-struct Target {
-    TargetType type;
+class Vector2D {
+private:
     double x;
     double y;
-    double hp;
-    double value;
+
+public:
+    Vector2D(double x_value = 0.0, double y_value = 0.0) : x(x_value), y(y_value) {}
+
+    double getX() const {
+        return x;
+    }
+
+    double getY() const {
+        return y;
+    }
+
+    Vector2D operator+(const Vector2D& other) const {
+        return Vector2D(x + other.x, y + other.y);
+    }
+
+    Vector2D operator-(const Vector2D& other) const {
+        return Vector2D(x - other.x, y - other.y);
+    }
+
+    Vector2D operator*(double scalar) const {
+        return Vector2D(x * scalar, y * scalar);
+    }
+
+    double distanceTo(const Vector2D& other) const {
+        double dx = x - other.x;
+        double dy = y - other.y;
+
+        return std::sqrt(dx * dx + dy * dy);
+    }
 };
 
-struct Weapon {
+class ITrajectorySource {
+public:
+    virtual Vector2D calculateReleasePoint(const Vector2D& impact, double altitude, const Vector2D& wind) const = 0;
+    virtual ~ITrajectorySource() = default;
+};
+
+class Target {
+private:
+    TargetType type;
+    Vector2D position;
+    double hp;
+    double value;
+
+public:
+    Target(TargetType target_type, const Vector2D& target_position, double target_hp, double target_value) : type(target_type), position(target_position), hp(target_hp), value(target_value) {}
+
+    TargetType getType() const {
+        return type;
+    }
+
+    Vector2D getPosition() const {
+        return position;
+    }
+
+    double getHp() const {
+        return hp;
+    }
+
+    double getValue() const {
+        return value;
+    }
+};
+
+class Weapon {
+private:
     WeaponType type;
     double radius;
     double damage;
     int price;
+
+public:
+    Weapon(WeaponType weapon_type, double weapon_radius, double weapon_damage, int weapon_price) : type(weapon_type), radius(weapon_radius), damage(weapon_damage), price(weapon_price) {}
+
+    WeaponType getType() const {
+        return type;
+    }
+
+    double getRadius() const {
+        return radius;
+    }
+
+    double getDamage() const {
+        return damage;
+    }
+
+    int getPrice() const {
+        return price;
+    }
 };
 
-double fallTime(double altitude_m) {
-    return std::sqrt(2.0 * altitude_m / G);
-}
+class TargetWeaponSelector {
+public:
+    struct SelectionResult {
+        int net;
+        int value_sum;
+        int destroyed;
+        int best_target;
+        int best_weapon;
+    };
 
-double findDistance(double remains_x, double remains_y) {
-    return std::sqrt(
-        remains_x * remains_x + remains_y * remains_y
-    );
-}
+    struct CompareResults {
+        const std::vector<Weapon>& weapons;
 
-bool getTargetType(
-    const std::string& name,
-    TargetType& type,
-    double& value
-) {
-    if (name == "PERSONNEL") {
-        type = TargetType::PERSONNEL;
-        value = 10;
+        bool operator()(const SelectionResult& a, const SelectionResult& b) const {
+            if (a.net != b.net) {
+                return a.net < b.net;
+            }
+
+            if (weapons[a.best_weapon].getPrice() != weapons[b.best_weapon].getPrice()) {
+                return weapons[a.best_weapon].getPrice() > weapons[b.best_weapon].getPrice();
+            }
+            return false;
+        }
+    };
+
+    SelectionResult select(const std::vector<Target>& targets,const std::vector<Weapon>& weapons) const {
+
+        std::vector<SelectionResult> results;
+        int t = 0;
+
+        for (const Target& target : targets) {
+            int w = 0;
+
+            for (const Weapon& weapon : weapons) {
+                int sum = 0;
+                int temp_destroyed = 0;
+
+                for (const Target& other_target : targets) {
+                    double d = target.getPosition().distanceTo(other_target.getPosition());
+
+                    if (d <= weapon.getRadius() && weapon.getDamage() >= other_target.getHp()) {
+
+                        sum += static_cast<int>(other_target.getValue());
+                        temp_destroyed++;
+                    }
+                }
+
+                results.push_back({
+                    sum - weapon.getPrice(),
+                    sum,
+                    temp_destroyed,
+                    t,
+                    w
+                });
+
+                w++;
+            }
+
+            t++;
+        }
+
+        auto best = std::max_element(results.begin(), results.end(), CompareResults{weapons});
+
+        return *best;
     }
-    else if (name == "LOGISTICS") {
-        type = TargetType::LOGISTICS;
-        value = 20;
-    }
-    else if (name == "APC") {
-        type = TargetType::APC;
-        value = 40;
-    }
-    else if (name == "TANK") {
-        type = TargetType::TANK;
-        value = 60;
-    }
-    else if (name == "RADAR") {
-        type = TargetType::RADAR;
-        value = 90;
-    }
-    else {
-        return false;
+};
+
+class HoverTrajectory : public ITrajectorySource {
+private:
+    double fallTime(double altitude_m) const {
+        return std::sqrt(2.0 * altitude_m / G);
     }
 
-    return true;
-}
+public:
+    Vector2D calculateReleasePoint(const Vector2D& impact, double altitude, const Vector2D& wind) const override {
+        double time = fallTime(altitude);
+        return impact - wind * time;
+    }
+};
+
+class ForwardThrowTrajectory : public ITrajectorySource {
+private:
+    Vector2D drone_velocity;
+
+    double fallTime(double altitude_m) const {
+        return std::sqrt(2.0 * altitude_m / G);
+    }
+
+public:
+    explicit ForwardThrowTrajectory(const Vector2D& velocity = Vector2D(12.0, 0.0)) : drone_velocity(velocity) {}
+
+    Vector2D calculateReleasePoint(const Vector2D& impact, double altitude, const Vector2D& wind) const override
+    {
+        double release_x;
+        double release_y;
+
+        forward_throw_release(impact.getX(), impact.getY(), altitude, wind.getX(), wind.getY(), drone_velocity.getX(), drone_velocity.getY(), release_x, release_y);
+
+        return Vector2D(release_x, release_y);
+    }
+};
+
+class TargetTypeBool {
+public:
+    bool getTargetType(const std::string& name, TargetType& type, double& value) const {
+        if (name == "PERSONNEL") {
+            type = TargetType::PERSONNEL;
+            value = 10;
+        }
+        else if (name == "LOGISTICS") {
+            type = TargetType::LOGISTICS;
+            value = 20;
+        }
+        else if (name == "APC") {
+            type = TargetType::APC;
+            value = 40;
+        }
+        else if (name == "TANK") {
+            type = TargetType::TANK;
+            value = 60;
+        }
+        else if (name == "RADAR") {
+            type = TargetType::RADAR;
+            value = 90;
+        }
+        else {
+            return false;
+        }
+
+        return true;
+    }
+};
 
 int main(int argc, char* argv[]) {
     std::string input_file;
     std::string output_file;
+    std::string trajectory_name = "hover";
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -93,6 +282,7 @@ int main(int argc, char* argv[]) {
 
             input_file = argv[++i];
         }
+        
         else if (arg == "--output-file") {
             if (i + 1 >= argc || argv[i + 1][0] == '\0') {
                 std::cerr << "Помилка. Missing value for --output-file\n";
@@ -101,29 +291,47 @@ int main(int argc, char* argv[]) {
 
             output_file = argv[++i];
         }
+        
+        else if (arg == "--trajectory") {
+            trajectory_name = argv[++i];
+        }
+        
         else {
             std::cerr << "Unknown argument: " << arg << "\n";
-            std::cerr
-            << "Помилка. Usage: ./drop_calc --input-file <path> "<< "--output-file <path>\n";
+            std::cerr << "Помилка. Usage: ./drop_calc --input-file <path> " << "--output-file <path>\n";
             return 1;
         }
     }
+    
+    if (trajectory_name != "hover" && trajectory_name != "forward") {
+        std::cerr << "Помилка: trajectory must be hover or forward\n";
+        return 1;
+    }
 
     if (input_file.empty() || output_file.empty()) {
-        std::cerr
-            << "Помилка. Usage: ./drop_calc --input-file <path> "<< "--output-file <path>\n";
+        std::cerr << "Помилка. Usage: ./drop_calc --input-file <path> " << "--output-file <path>\n";
         return 1;
     }
 
     std::ifstream in(input_file);
 
     if (!in.is_open()) {
-        std::cerr << "Помилка. Could not open input file: "<< input_file << "\n";
+        std::cerr << "Помилка. Could not open input file: " << input_file << "\n";
         return 1;
     }
+    
+    std::unique_ptr<ITrajectorySource> trajectory_source;
 
+    if (trajectory_name == "hover") {
+        trajectory_source = std::make_unique<HoverTrajectory>();
+    }
+    else {
+        trajectory_source = std::make_unique<ForwardThrowTrajectory>();
+    }
+    
     double altitude_m;
-    double wind_x, wind_y;
+    double wind_x;
+    double wind_y;
     int count;
 
     if (!(in >> altitude_m >> wind_x >> wind_y >> count)) {
@@ -131,34 +339,45 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    if (altitude_m <= 0 || count < 1 || count > 64) {
-        std::cerr
-            << "Помилка. altitude_m must be > 0, count must be " << "between 1 and 64\n";
+    if (altitude_m <= 0 || count < 1) {
+        std::cerr << "Помилка. Invalid altitude (altitude_m must be > 0)\n";
         return 1;
     }
 
     std::vector<Target> targets;
 
     for (int i = 0; i < count; i++) {
-        Target target;
-        std::string type;
+        double x;
+        double y;
+        double hp;
+        std::string type_name;
 
-        if (!(in >> target.x >> target.y >> target.hp >> type)) {
+        if (!(in >> x >> y >> hp >> type_name)) {
             std::cerr << "Помилка. Invalid target data\n";
             return 1;
         }
 
-        if (!getTargetType(type, target.type, target.value)) {
-            std::cerr << "Помилка. Invalid target type\n";
-            return 1;
-        }
-
-        if (target.hp < 1) {
+        if (hp < 1) {
             std::cerr << "Помилка. Hp must be at least 1\n";
             return 1;
         }
 
-        targets.push_back(target);
+        TargetType type;
+        double value;
+
+        TargetTypeBool parser;
+
+        if (!parser.getTargetType(type_name, type, value)) {
+            std::cerr << "Помилка. Invalid target type\n";
+            return 1;
+        }
+
+        targets.emplace_back(
+            type,
+            Vector2D(x, y),
+            hp,
+            value
+        );
     }
 
     std::vector<Weapon> weapons = {
@@ -166,78 +385,52 @@ int main(int argc, char* argv[]) {
         {WeaponType::HE,   35.0, 55.0, 20},
         {WeaponType::HEAT, 15.0, 130.0, 45}
     };
+    
+    TargetWeaponSelector selector;
 
-    int net = -100000;
-    int value_sum = 0;
-    int destroyed = 0;
-    int best_target = 0;
-    int best_weapon = 0;
-    int t = 0;
+    auto start = std::chrono::steady_clock::now();
 
-    for (const Target& target : targets) {
-        int w = 0;
+    TargetWeaponSelector::SelectionResult selection = selector.select(targets, weapons);
 
-        for (const Weapon& weapon : weapons) {
-            int sum = 0;
-            int temp_destroyed = 0;
+    int net = selection.net;
+    int value_sum = selection.value_sum;
+    int destroyed = selection.destroyed;
+    int best_target = selection.best_target;
+    int best_weapon = selection.best_weapon;
 
-            for (const Target& other_targets : targets) {
-                double d = findDistance(
-                    other_targets.x - target.x,
-                    other_targets.y - target.y
-                );
+    double impact_x = targets[best_target].getPosition().getX();
+    double impact_y = targets[best_target].getPosition().getY();
 
-                if (d <= weapon.radius &&
-                    weapon.damage >= other_targets.hp) {
-                    sum += other_targets.value;
-                    temp_destroyed++;
-                }
-            }
+    Vector2D impact(impact_x, impact_y);
+    Vector2D wind(wind_x, wind_y);
 
-            int temp_net = sum - weapon.price;
+    Vector2D release = trajectory_source->calculateReleasePoint(impact, altitude_m, wind);
 
-            if (temp_net > net ||
-                (temp_net == net &&
-                 weapon.price < weapons[best_weapon].price)) {
+    auto end = std::chrono::steady_clock::now();
 
-                net = temp_net;
-                value_sum = sum;
-                destroyed = temp_destroyed;
-                best_target = t;
-                best_weapon = w;
-            }
+    auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-            w++;
-        }
+    std::cout << "elapsed_us " << elapsed_us << '\n';
 
-        t++;
-    }
-
-    double impact_x = targets[best_target].x;
-    double impact_y = targets[best_target].y;
-
-    double fall_time = fallTime(altitude_m);
-
-    double release_x = impact_x - wind_x * fall_time;
-    double release_y = impact_y - wind_y * fall_time;
+    double release_x = release.getX();
+    double release_y = release.getY();
 
     std::string final_weapon;
 
-    if (weapons[best_weapon].type == WeaponType::Frag) {
+    if (weapons[best_weapon].getType() == WeaponType::Frag) {
         final_weapon = "Frag";
     }
-    else if (weapons[best_weapon].type == WeaponType::HE) {
+    else if (weapons[best_weapon].getType() == WeaponType::HE) {
         final_weapon = "HE";
     }
     else {
         final_weapon = "HEAT";
     }
-    
+
     std::ofstream out(output_file);
 
     if (!out.is_open()) {
-        std::cerr << "Помилка. Could not open output file: "
-                  << output_file << "\n";
+        std::cerr << "Помилка. Could not open output file: " << output_file << "\n";
         return 1;
     }
 
@@ -246,7 +439,7 @@ int main(int argc, char* argv[]) {
     out << impact_x << " " << impact_y << "\n";
     out << release_x << " " << release_y << "\n";
     out << final_weapon << "\n";
-    out << destroyed << " "<< value_sum << " " << weapons[best_weapon].price << " " << net << "\n";
+    out << destroyed << " " << value_sum << " " << weapons[best_weapon].getPrice() << " " << net << "\n";
 
     if (!out) {
         std::cerr << "Помилка. Error writing output file\n";
@@ -255,4 +448,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-

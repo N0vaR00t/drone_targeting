@@ -6,11 +6,12 @@
 Перша команда в терміналі для компіляції - g++ -std=c++17 -Wall -Wextra main.cpp -o drop_calc
 
 <h3>Приклад 1 — запуск на одному файлі через аргументи:</h3>
-./drop_calc --input-file scenario.txt --output-file result.txt - Порядок аргументів не фіксований.    
+./drop_calc --input-file scenario.txt --output-file result.txt --trajectory hover|forward - Порядок аргументів не фіксований, модель траєкторії за замовчуванням
+hover.
 
 <h3>Приклад 2 — пакетна обробка теки - використовує run-all.sh:</h3>  
 
-./run-all.sh. 
+./run-all.sh 
 
 <h3>Приклад 3 — запуск у контейнері - використовує Dockerfile:</h3>
   
@@ -32,6 +33,10 @@ input/mission-b.txt → output/mission-b-result.txt
 Вивід по всім файлам в теці Input;  
 Друк результатів в терміналі;  
 Для збереження в теці Output виклик: docker run --rm -v "$(pwd)/output:/app/output" drop-calc
+
+<h3>Потік виводу (stdout) у терміналі:</h3> 
+
+Програма друкує рядок з тривалістю розрахунку в мікросекундах: elapsed_us <ціле число>
 
 <h2>Приклад роботи:</h2>
 
@@ -65,3 +70,87 @@ impact_x impact_y ← краща точка влучання
 release_x release_y ← точка скиду з урахуванням вітру  
 <назва боєприпасу> ← Frag / HE / HEAT  
 destroyed value_sum price net
+
+## Діаграма класів  
+
+```mermaid
+classDiagram
+    class TargetType {
+        <<enumeration>>
+        PERSONNEL
+        LOGISTICS
+        APC
+        TANK
+        RADAR
+    }
+
+    class WeaponType {
+        <<enumeration>>
+        Frag
+        HE
+        HEAT
+    }
+
+    class Vector2D {
+        -double x
+        -double y
+        +getX() double
+        +getY() double
+        +distanceTo() double
+    }
+
+    class Target {
+        -TargetType type
+        -Vector2D position
+        -double hp
+        -double value
+    }
+
+    class Weapon {
+        -WeaponType type
+        -double radius
+        -double damage
+        -int price
+    }
+
+    class TargetWeaponSelector {
+        +select() SelectionResult
+    }
+
+    class TargetTypeBool {
+        +getTargetType() bool
+    }
+
+    class ITrajectorySource {
+        <<interface>>
+        +calculateReleasePoint() Vector2D
+    }
+
+    class HoverTrajectory {
+        -fallTime() double
+        +calculateReleasePoint() Vector2D
+    }
+
+    class ForwardThrowTrajectory {
+        -Vector2D drone_velocity
+        +calculateReleasePoint() Vector2D
+    }
+
+    Target --> TargetType
+    Target *-- Vector2D
+    Weapon --> WeaponType
+
+    TargetWeaponSelector ..> Target
+    TargetWeaponSelector ..> Weapon
+
+    TargetTypeBool ..> TargetType
+
+    HoverTrajectory --|> ITrajectorySource
+    ForwardThrowTrajectory --|> ITrajectorySource
+
+    ITrajectorySource ..> Vector2D
+    ForwardThrowTrajectory *-- Vector2D
+```
+<h3>O-нотація</h3>
+
+Складність підбору комбінації цілей та зброї - O(n² × m). Наразі кількість типів зброї фіксована, тому складність становить O(n²).
