@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <chrono>
 
 inline void forward_throw_release(
     double impact_x, double impact_y,
@@ -141,15 +142,25 @@ public:
         int best_target;
         int best_weapon;
     };
-    
-    SelectionResult select(
-        const std::vector<Target>& targets,
-        const std::vector<Weapon>& weapons
-    ) const {
-        SelectionResult result = {
-            -100000, 0, 0, 0, 0
-        };
 
+    struct CompareResults {
+        const std::vector<Weapon>& weapons;
+
+        bool operator()(const SelectionResult& a, const SelectionResult& b) const {
+            if (a.net != b.net) {
+                return a.net < b.net;
+            }
+
+            if (weapons[a.best_weapon].getPrice() != weapons[b.best_weapon].getPrice()) {
+                return weapons[a.best_weapon].getPrice() > weapons[b.best_weapon].getPrice();
+            }
+            return false;
+        }
+    };
+
+    SelectionResult select(const std::vector<Target>& targets,const std::vector<Weapon>& weapons) const {
+
+        std::vector<SelectionResult> results;
         int t = 0;
 
         for (const Target& target : targets) {
@@ -160,29 +171,22 @@ public:
                 int temp_destroyed = 0;
 
                 for (const Target& other_target : targets) {
-                    double d = target.getPosition().distanceTo(
-                        other_target.getPosition()
-                    );
+                    double d = target.getPosition().distanceTo(other_target.getPosition());
 
                     if (d <= weapon.getRadius() && weapon.getDamage() >= other_target.getHp()) {
+
                         sum += static_cast<int>(other_target.getValue());
                         temp_destroyed++;
                     }
                 }
 
-                int temp_net = sum - weapon.getPrice();
-
-                if (temp_net > result.net ||
-                    (temp_net == result.net &&
-                     weapon.getPrice() <
-                     weapons[result.best_weapon].getPrice())) {
-
-                    result.net = temp_net;
-                    result.value_sum = sum;
-                    result.destroyed = temp_destroyed;
-                    result.best_target = t;
-                    result.best_weapon = w;
-                }
+                results.push_back({
+                    sum - weapon.getPrice(),
+                    sum,
+                    temp_destroyed,
+                    t,
+                    w
+                });
 
                 w++;
             }
@@ -190,7 +194,9 @@ public:
             t++;
         }
 
-        return result;
+        auto best = std::max_element(results.begin(), results.end(), CompareResults{weapons});
+
+        return *best;
     }
 };
 
@@ -333,8 +339,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    if (altitude_m <= 0 || count < 1 || count > 64) {
-        std::cerr << "Помилка. altitude_m must be > 0, " << "count must be between 1 and 64\n";
+    if (altitude_m <= 0 || count < 1) {
+        std::cerr << "Помилка. Invalid altitude (altitude_m must be > 0)\n";
         return 1;
     }
 
@@ -379,8 +385,10 @@ int main(int argc, char* argv[]) {
         {WeaponType::HE,   35.0, 55.0, 20},
         {WeaponType::HEAT, 15.0, 130.0, 45}
     };
-
+    
     TargetWeaponSelector selector;
+
+    auto start = std::chrono::steady_clock::now();
 
     TargetWeaponSelector::SelectionResult selection = selector.select(targets, weapons);
 
@@ -396,9 +404,13 @@ int main(int argc, char* argv[]) {
     Vector2D impact(impact_x, impact_y);
     Vector2D wind(wind_x, wind_y);
 
-    Vector2D release = trajectory_source->calculateReleasePoint(
-        impact, altitude_m, wind
-    );
+    Vector2D release = trajectory_source->calculateReleasePoint(impact, altitude_m, wind);
+
+    auto end = std::chrono::steady_clock::now();
+
+    auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+    std::cout << "elapsed_us " << elapsed_us << '\n';
 
     double release_x = release.getX();
     double release_y = release.getY();
@@ -427,11 +439,7 @@ int main(int argc, char* argv[]) {
     out << impact_x << " " << impact_y << "\n";
     out << release_x << " " << release_y << "\n";
     out << final_weapon << "\n";
-
-    out << destroyed << " "
-        << value_sum << " "
-        << weapons[best_weapon].getPrice() << " "
-        << net << "\n";
+    out << destroyed << " " << value_sum << " " << weapons[best_weapon].getPrice() << " " << net << "\n";
 
     if (!out) {
         std::cerr << "Помилка. Error writing output file\n";
