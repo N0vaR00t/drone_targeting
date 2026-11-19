@@ -18,6 +18,22 @@ hover.
 docker build -t drop-calc .  
 docker run --rm drop-calc
 
+<h3>Три варіанти тестової збірки:</h3>  
+
+<h4>Debug</h4>
+cmake -S . -B build/debug -DCMAKE_BUILD_TYPE=Debug
+cmake --build build/debug
+
+<h4>Release</h4>
+cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release
+cmake --build build/release
+
+<h4>Diagnostics</h4>
+cmake -S . -B build/sanitizers \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DENABLE_SANITIZERS=ON
+cmake --build build/sanitizers
+
 <h2>Формат виводу:</h2>
 
 <h3>Приклад 1 — запуск на одному файлі через аргументи:</h3>
