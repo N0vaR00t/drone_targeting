@@ -1,9 +1,7 @@
 #include <gtest/gtest.h>
-
 #include <fstream>
 #include <sstream>
 #include <string>
-
 #include "library.h"
 
 namespace {
@@ -34,7 +32,7 @@ TEST_P(MissionRegression, MatchesExpectedOutput) {
     const MissionRegressionCase &test_case = GetParam();
     SCOPED_TRACE(test_case.test_name);
 
-    std::ifstream input(fixtureDirectory("input") + "/" + test_case.input_file);
+    std::ifstream input(fixtureDirectory("../input") + "/" + test_case.input_file);
     ASSERT_TRUE(input.is_open()) << "Could not open fixture " << test_case.input_file;
 
     Scenario scenario{};
