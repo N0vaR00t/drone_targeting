@@ -18,21 +18,34 @@ hover.
 docker build -t drop-calc .  
 docker run --rm drop-calc
 
-<h3>Три варіанти тестової збірки:</h3>  
+<h3>Тестова збірка:</h3>  
 
-<h4>Debug</h4>
-cmake -S . -B build/debug -DCMAKE_BUILD_TYPE=Debug
-cmake --build build/debug
+<h4>Під час першої конфігурації CMake завантажить GoogleTest.</h4>
 
-<h4>Release</h4>
-cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release
-cmake --build build/release
+**увесь набір**:  
+ctest --test-dir build-debug --output-on-failure  
 
-<h4>Diagnostics</h4>
+**лише регресійна частина**:  
+ctest --test-dir build-debug -R Regression  
+
+**перелік без запуску**:  
+./build-debug/drop_core_tests --gtest_list_tests  
+
+**незалежність від порядку**:  
+./build-debug/drop_core_tests --gtest_shuffle        
+
+<h4>Діагностика</h4>
 cmake -S . -B build/sanitizers \
   -DCMAKE_BUILD_TYPE=Debug \
   -DENABLE_SANITIZERS=ON
 cmake --build build/sanitizers
+
+<h3>Склад набору тестів</h3>
+
+**Юніт-тести** перевіряють розбір коректного сценарію та обробку помилок
+  (коректний / порожній / пошкоджений), моделі траєкторії, вибір рішення з тайбрейками та формування виводу.
+  
+**Регресійні тести** порівнюють поєднання «сценарій × модель» і порівнює з заданими результатами в expected/. Для кожного сценарію перевіряються обидві моделі: Hover і Forward.
 
 <h2>Формат виводу:</h2>
 
