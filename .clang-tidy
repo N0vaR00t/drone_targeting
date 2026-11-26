@@ -1,0 +1,10 @@
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  modernize-*,
+  readability-*,
+  cppcoreguidelines-pro-type-member-init,
+  -modernize-use-trailing-return-type
+WarningsAsErrors: 'bugprone-*'
+HeaderFilterRegex: '(^|/)(library|provided_coverage)\.h$'

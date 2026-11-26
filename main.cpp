@@ -1,11 +1,12 @@
-#include "library.h"
 #include <chrono>
+#include <exception>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <string>
+#include "library.h"
 
-int main(int argc, char* argv[]) {
+static int run(int argc, char *argv[]) {
+
     std::string input_file;
     std::string output_file;
     TrajectoryType trajectory_type = TrajectoryType::Hover;
@@ -18,7 +19,6 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Помилка. Missing value for --input-file\n";
                 return 1;
             }
-            
             input_file = argv[++i];
 
         } else if (arg == "--output-file") {
@@ -26,7 +26,6 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Помилка. Missing value for --output-file\n";
                 return 1;
             }
-            
             output_file = argv[++i];
 
         } else if (arg == "--trajectory") {
@@ -36,7 +35,6 @@ int main(int argc, char* argv[]) {
             }
 
             const std::string trajectory_name = argv[++i];
-            
             if (trajectory_name == "hover") {
                 trajectory_type = TrajectoryType::Hover;
             } else if (trajectory_name == "forward") {
@@ -48,7 +46,7 @@ int main(int argc, char* argv[]) {
 
         } else {
             std::cerr << "Unknown argument: " << arg << "\n";
-            std::cerr << "Помилка. Usage: ./drop_calc --input-file <path> "<< "--output-file <path>\n";
+            std::cerr << "Помилка. Usage: ./drop_calc --input-file <path> " << "--output-file <path>\n";
             return 1;
         }
     }
@@ -64,51 +62,23 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    Scenario scenario;
-    double wind_x;
-    double wind_y;
-    int count;
-
-    if (!(in >> scenario.altitude_m >> wind_x >> wind_y >> count)) {
-        std::cerr << "Помилка. Invalid data\n";
-        return 1;
-    }
-
-    if (count == 0) {
-        std::cerr << "Помилка. Empty scenario\n";
-        return 1;
-    }
-
-    if (scenario.altitude_m <= 0 || count < 0) {
-        std::cerr << "Помилка. Invalid altitude or count\n";
-        return 1;
-    }
-
-    scenario.wind = Vector2D(wind_x, wind_y);
-
-    for (int i = 0; i < count; i++) {
-        double x;
-        double y;
-        double hp;
-        std::string type_name;
-
-        if (!(in >> x >> y >> hp >> type_name)) {
-            std::cerr << "Помилка. Invalid target data\n";
+    Scenario scenario{};
+    const ScenarioParseError parse_error = parseScenario(in, scenario);
+    switch (parse_error) {
+        case ScenarioParseError::None:
+            break;
+        case ScenarioParseError::InvalidData:std::cerr << "Помилка. Invalid data\n";
             return 1;
-        }
-
-        if (hp < 1) {
-            std::cerr << "Помилка. Hp must be at least 1\n";
+        case ScenarioParseError::EmptyScenario:std::cerr << "Помилка. Empty scenario\n";
             return 1;
-        }
-
-        TargetType type;
-        if (!parseTargetType(type_name, type)) {
-            std::cerr << "Помилка. Invalid target type\n";
+        case ScenarioParseError::InvalidAltitudeOrCount:std::cerr << "Помилка. Invalid altitude or count\n";
             return 1;
-        }
-
-        scenario.targets.push_back({type, Vector2D(x, y), hp});
+        case ScenarioParseError::InvalidTargetData:std::cerr << "Помилка. Invalid target data\n";
+            return 1;
+        case ScenarioParseError::HpTooLow:std::cerr << "Помилка. Hp must be at least 1\n";
+            return 1;
+        case ScenarioParseError::InvalidTargetType:std::cerr << "Помилка. Invalid target type\n";
+            return 1;
     }
 
     const auto start = std::chrono::steady_clock::now();
@@ -125,16 +95,20 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    out << std::fixed << std::setprecision(2);
-    out << result.impact.getX() << " " << result.impact.getY() << "\n";
-    out << result.release.getX() << " " << result.release.getY() << "\n";
-    out << result.weapon_name << "\n";
-    out << result.destroyed << " " << result.value_sum << " " << result.weapon_price << " " << result.net << "\n";
-
-    if (!out) {
+    if (!writeResult(out, result)) {
         std::cerr << "Помилка. Error writing output file\n";
         return 1;
     }
 
     return 0;
+}
+
+int main(int argc, char *argv[]) {
+    
+    try {
+        return run(argc, argv);
+    } catch (const std::exception &error) {
+        std::cerr << "Error: " << error.what() << '\n';
+        return 1;
+    }
 }
