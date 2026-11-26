@@ -37,8 +37,8 @@ if(BUILD_TESTING)
     FetchContent_MakeAvailable(googletest)
 
     add_executable(drop_core_tests
-        library_unit_tests.cpp
-        library_regression_tests.cpp
+        testing/library_unit_tests.cpp
+        testing/library_regression_tests.cpp
     )
     target_link_libraries(drop_core_tests PRIVATE drop_calc_library GTest::gtest_main)
     include(GoogleTest)
